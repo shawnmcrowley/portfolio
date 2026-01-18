@@ -1,0 +1,22 @@
+{
+  "name": "Portfolio Video Website",
+  "short_name": "Portfolio",
+  "description": "A personal portfolio showcasing videos, pictures, and about me",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#771e1e",
+  "theme_color": "#f59e0b",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
