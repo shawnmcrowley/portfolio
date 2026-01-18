@@ -32,7 +32,7 @@ export default function Navigation() {
           <div className="flex items-center">
             <Link href="/" className="flex-shrink-0 flex items-center">
               <h1 className="text-2xl font-youthful text-maroon-700">
-                My Portfolio
+                Brady R. Crowley's Portfolio
               </h1>
             </Link>
           </div>

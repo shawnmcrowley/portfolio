@@ -20,30 +20,35 @@ A modern, responsive portfolio website built with Next.js 16, featuring video an
 - **PWA**: Service Worker for offline support
 - **Authentication**: Client-side OTP system (demo implementation)
 - **Build**: Turbopack (Next.js 16+ default, no webpack needed)
+- **Architecture**: Next.js best practices with `src` directory
 
 ## Project Structure
 
 ```
 portfolio/
-├── app/
-│   ├── components/          # Reusable components
-│   │   ├── Layout.js       # Main layout wrapper
-│   │   └── Navigation.js   # Navigation component
-│   ├── admin/              # Admin panel for content management
-│   ├── login/              # OTP login page
-│   ├── videos/             # Video gallery
-│   ├── pictures/           # Picture gallery
-│   ├── page.js             # Home/About page
-│   ├── layout.js           # Root layout with PWA setup
-│   └── globals.css         # Global styles and Tailwind
+├── src/
+│   └── app/
+│       ├── components/          # Reusable components
+│       │   ├── Layout.js       # Main layout wrapper
+│       │   ├── Navigation.js   # Navigation component
+│       │   └── ServiceWorkerRegistration.js # PWA registration
+│       ├── admin/              # Admin panel for content management
+│       ├── login/              # OTP login page
+│       ├── videos/             # Video gallery
+│       ├── pictures/           # Picture gallery
+│       ├── page.js             # Home/About page
+│       ├── layout.js           # Root layout with PWA setup
+│       ├── globals.css         # Global styles and Tailwind
+│       ├── error.js            # Error handling
+│       └── not_found.js        # 404 page
 ├── public/
-│   ├── manifest.json       # PWA manifest
-│   ├── sw.js              # Service worker
-│   ├── videos/            # Uploaded videos directory
-│   └── pictures/          # Uploaded pictures directory
-├── tailwind.config.js      # Tailwind configuration
-├── next.config.js          # Clean Next.js config (Turbopack enabled)
-└── package.json           # Dependencies and scripts
+│   ├── manifest.json           # PWA manifest
+│   ├── sw.js                  # Service worker
+│   ├── favicon.ico            # Site icon
+│   └── icon-*.png             # PWA icons
+├── tailwind.config.js          # Tailwind configuration
+├── next.config.js              # Clean Next.js config (Turbopack enabled)
+└── package.json               # Dependencies and scripts
 ```
 
 ## Getting Started
@@ -87,18 +92,13 @@ This creates an optimized production build in the `out` directory, ready for sta
 - **No webpack configuration needed** - Next.js 16+ uses Turbopack by default
 - **Minimal next.config.js** - Only essential settings for static export
 - **Fast builds** - Turbopack provides lightning-fast development and production builds
+- **Best practices structure** - All application code in `src/app` directory
 
-### @ Alias Imports
-The project uses **@** as an alias for clean component imports:
-
-```javascript
-// ✅ Clean imports using @ alias
-import Layout from '@/components/Layout'
-import Navigation from '@/components/Navigation'
-
-// ❌ No more relative imports needed
-import Layout from '../../components/Layout'
-```
+### Component Structure
+- **Separation of concerns** - Client logic in separate components
+- **Safe service worker registration** - No dangerous innerHTML
+- **Clean imports** - Relative paths within `src/app`
+- **Pure JavaScript** - No TypeScript dependencies
 
 ## Deployment
 
@@ -147,13 +147,13 @@ The color scheme is defined in `tailwind.config.js`:
 - **Gold**: Accent color for CTAs and highlights (shades 50-950)
 
 ### Content
-- Update the About Me section in `app/page.js`
+- Update the About Me section in `src/app/page.js`
 - Modify video and picture data in their respective pages
 - Customize the hero text and personal information
 
 ### Styling
 - Font families are defined in `tailwind.config.js`
-- Custom CSS classes are in `app/globals.css`
+- Custom CSS classes are in `src/app/globals.css`
 - Component-specific styles use Tailwind utility classes
 
 ## PWA Features
@@ -162,6 +162,7 @@ The color scheme is defined in `tailwind.config.js`:
 - **Installable**: Can be installed on mobile devices
 - **App-like Experience**: Standalone display mode
 - **Fast Loading**: Cached resources for quick startup
+- **Safe Registration**: Clean service worker setup without dangerous innerHTML
 
 ## Browser Support
 
