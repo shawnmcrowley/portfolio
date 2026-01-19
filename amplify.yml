@@ -8,7 +8,7 @@ frontend:
       commands:
         - npm run build
   artifacts:
-    baseDirectory: .next # This points to the static output directory
+    baseDirectory: .next # This points to the static output directory instead of "out" in nextjs 14+
     files:
       - "**/*"
   cache:
