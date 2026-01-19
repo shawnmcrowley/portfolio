@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import Layout from '../components/Layout'
+import Layout from '@/components/Layout'
+
 
 export default function Admin() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)

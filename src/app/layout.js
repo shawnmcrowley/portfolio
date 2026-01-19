@@ -1,4 +1,4 @@
-import ServiceWorkerRegistration from './components/ServiceWorkerRegistration'
+import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration'
 import './globals.css'
 
 export const metadata = {
