@@ -1,6 +1,6 @@
 # Portfolio Video Website
 
-A modern, responsive portfolio website built with Next.js 16, featuring video and picture galleries with admin upload functionality.
+A modern, responsive portfolio website built with Next.js 16, featuring video and picture galleries with admin upload functionality.Hosting is on AWS Amplify
 
 ## Features
 
