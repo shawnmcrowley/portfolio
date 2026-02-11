@@ -2,7 +2,7 @@ import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration'
 import './globals.css'
 
 export const metadata = {
-  title: 'Brady's Portfolio',
+  title: 'Bradys Portfolio',
   description: 'Brady R. Crowley's portfolio showcasing videos, pictures, and bio',
 }
 
