@@ -2,8 +2,8 @@ import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration'
 import './globals.css'
 
 export const metadata = {
-  title: 'Portfolio Video Website',
-  description: 'Personal portfolio showcasing videos, pictures, and about me',
+  title: 'Brady's Portfolio',
+  description: 'Brady R. Crowley's portfolio showcasing videos, pictures, and bio',
 }
 
 export const viewport = {
