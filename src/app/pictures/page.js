@@ -1,56 +1,88 @@
+'use client'
+
+import { useState, useEffect } from 'react'
 import Layout from '@/components/Layout'
+import ImageViewer from '@/components/ImageViewer'
+import { listPictures, getFileUrl, formatFileSize } from '@/lib/storage'
 
 export default function Pictures() {
-  const pictures = [
-    {
-      id: 1,
-      title: "Portrait Session",
-      description: "Professional portrait photography showcase",
-      filename: "portrait-session.jpg",
-      size: "2.3 MB",
-      dimensions: "1920x1080"
-    },
-    {
-      id: 2,
-      title: "Nature Photography",
-      description: "Capturing the beauty of natural landscapes",
-      filename: "nature-photography.jpg",
-      size: "4.7 MB",
-      dimensions: "2560x1440"
-    },
-    {
-      id: 3,
-      title: "Sports Action",
-      description: "Dynamic sports photography from various events",
-      filename: "sports-action.jpg",
-      size: "3.1 MB",
-      dimensions: "2048x1536"
-    },
-    {
-      id: 4,
-      title: "Creative Projects",
-      description: "Behind the scenes of creative work and projects",
-      filename: "creative-projects.jpg",
-      size: "5.2 MB",
-      dimensions: "2880x1920"
-    },
-    {
-      id: 5,
-      title: "Urban Exploration",
-      description: "Street photography and urban landscape shots",
-      filename: "urban-exploration.jpg",
-      size: "3.8 MB",
-      dimensions: "2400x1600"
-    },
-    {
-      id: 6,
-      title: "Event Coverage",
-      description: "Memorable moments from various events and gatherings",
-      filename: "event-coverage.jpg",
-      size: "4.1 MB",
-      dimensions: "2560x1707"
+  const [pictures, setPictures] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [selectedImage, setSelectedImage] = useState(null)
+
+  useEffect(() => {
+    loadPictures()
+  }, [])
+
+  const loadPictures = async () => {
+    try {
+      setLoading(true)
+      
+      // List pictures from S3 - now includes enhanced metadata
+      const pictureList = await listPictures()
+      
+      // Get URLs for each picture
+      const picturesWithUrls = await Promise.all(
+        pictureList.map(async (picture) => {
+          const url = await getFileUrl(picture.path)
+          
+          return {
+            id: picture.path,
+            title: picture.title,
+            description: picture.description,
+            url: url,
+            size: formatFileSize(picture.size),
+            lastModified: new Date(picture.lastModified).toLocaleDateString()
+          }
+        })
+      )
+      
+      setPictures(picturesWithUrls)
+    } catch (err) {
+      console.error('Error loading pictures:', err)
+      setError('Failed to load pictures. Please check your AWS configuration.')
+    } finally {
+      setLoading(false)
     }
-  ]
+  }
+
+  const handleDownload = (url, filename) => {
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="max-w-7xl mx-auto text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gold-500 mx-auto"></div>
+          <p className="mt-4 text-maroon-600">Loading pictures...</p>
+        </div>
+      </Layout>
+    )
+  }
+
+  if (error) {
+    return (
+      <Layout>
+        <div className="max-w-7xl mx-auto text-center py-12">
+          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <p className="text-maroon-700 mb-4">{error}</p>
+          <button 
+            onClick={loadPictures}
+            className="btn-primary"
+          >
+            Retry
+          </button>
+        </div>
+      </Layout>
+    )
+  }
 
   return (
     <Layout>
@@ -65,86 +97,85 @@ export default function Pictures() {
           </p>
         </div>
 
-        {/* Pictures Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {pictures.map((picture) => (
-            <div key={picture.id} className="card hover:shadow-xl transition-all duration-300 group">
-              {/* Image Placeholder */}
-              <div className="relative overflow-hidden rounded-lg mb-4 aspect-square bg-gradient-to-br from-maroon-100 to-gold-100">
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="text-6xl text-maroon-300 mb-2">📸</div>
-                    <p className="text-maroon-600 font-semibold">Photo Gallery</p>
+        {pictures.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="text-6xl mb-4">📸</div>
+            <p className="text-maroon-600">No pictures found in bucket.</p>
+            <p className="text-sm text-maroon-500 mt-2">
+              Upload pictures through the admin panel to see them here.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {pictures.map((picture) => (
+              <div key={picture.id} className="card hover:shadow-xl transition-all duration-300 group">
+                {/* Image Preview */}
+                <div 
+                  className="relative overflow-hidden rounded-lg mb-4 aspect-square bg-gradient-to-br from-maroon-100 to-gold-100 cursor-pointer"
+                  onClick={() => setSelectedImage(picture)}
+                >
+                  <img
+                    src={picture.url}
+                    alt={picture.title}
+                    className="w-full h-full object-cover"
+                  />
+                  
+                  {/* Hover Overlay */}
+                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-300 flex items-center justify-center">
+                    <button className="bg-white text-maroon-700 px-4 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 font-semibold">
+                      View Full Size
+                    </button>
                   </div>
                 </div>
-                
-                {/* Hover Overlay */}
-                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all duration-300 flex items-center justify-center">
-                  <button className="bg-white text-maroon-700 px-4 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 font-semibold">
-                    View Full Size
-                  </button>
+
+                {/* Picture Info */}
+                <div>
+                  <h3 className="text-lg font-bold text-maroon-700 mb-2">
+                    {picture.title}
+                  </h3>
+                  <p className="text-maroon-600 text-sm mb-3">
+                    {picture.description}
+                  </p>
+                  
+                  <div className="flex justify-between items-center text-xs text-maroon-500 mb-4">
+                    <span>Size: {picture.size}</span>
+                    <span>{picture.lastModified}</span>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => setSelectedImage(picture)}
+                      className="btn-primary flex-1 text-sm"
+                    >
+                      <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"/>
+                      </svg>
+                      View
+                    </button>
+                    <button 
+                      onClick={() => handleDownload(picture.url, picture.title + '.jpg')}
+                      className="btn-secondary text-sm"
+                    >
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M4 4v12h12V4H4zm0 14V6h8v12H4z"/>
+                      </svg>
+                      Download
+                    </button>
+                  </div>
                 </div>
               </div>
+            ))}
+          </div>
+        )}
 
-              {/* Picture Info */}
-              <div>
-                <h3 className="text-lg font-bold text-maroon-700 mb-2">
-                  {picture.title}
-                </h3>
-                <p className="text-maroon-600 text-sm mb-3">
-                  {picture.description}
-                </p>
-                
-                <div className="flex justify-between items-center text-xs text-maroon-500 mb-4">
-                  <span>Size: {picture.size}</span>
-                  <span>{picture.dimensions}</span>
-                </div>
-                
-                <div className="flex gap-2">
-                  <button className="btn-primary flex-1 text-sm">
-                    <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z"/>
-                    </svg>
-                    View
-                  </button>
-                  <button className="btn-secondary text-sm">
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M4 4v12h12V4H4zm0 14V6h8v12H4z"/>
-                    </svg>
-                    Download
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Photo Categories */}
-        <div className="mt-12 grid md:grid-cols-3 gap-6">
-          <div className="card text-center">
-            <div className="text-4xl mb-4">🎭</div>
-            <h3 className="text-xl font-bold text-maroon-700 mb-2">Portrait & People</h3>
-            <p className="text-maroon-600 text-sm">
-              Capturing personalities and emotions through portrait photography
-            </p>
-          </div>
-          
-          <div className="card text-center">
-            <div className="text-4xl mb-4">🌿</div>
-            <h3 className="text-xl font-bold text-maroon-700 mb-2">Nature & Landscapes</h3>
-            <p className="text-maroon-600 text-sm">
-              The beauty of natural world and outdoor adventures
-            </p>
-          </div>
-          
-          <div className="card text-center">
-            <div className="text-4xl mb-4">🏙️</div>
-            <h3 className="text-xl font-bold text-maroon-700 mb-2">Urban & Events</h3>
-            <p className="text-maroon-600 text-sm">
-              City life, architecture, and memorable event moments
-            </p>
-          </div>
-        </div>
+        {/* Image Viewer Modal */}
+        {selectedImage && (
+          <ImageViewer
+            url={selectedImage.url}
+            title={selectedImage.title}
+            onClose={() => setSelectedImage(null)}
+          />
+        )}
 
         {/* Admin Notice */}
         <div className="mt-12 bg-gold-50 border border-gold-200 rounded-lg p-6">

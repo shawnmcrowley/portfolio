@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Layout from '@/components/Layout'
-
+import { uploadVideo, uploadPicture, getMediaMetadata, updateMediaMetadata, listVideos, listPictures, deleteFile, getFileUrl } from '@/lib/storage'
 
 export default function Admin() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -12,7 +12,13 @@ export default function Admin() {
   const [pictureFile, setPictureFile] = useState(null)
   const [videoTitle, setVideoTitle] = useState('')
   const [pictureTitle, setPictureTitle] = useState('')
+  const [videoDescription, setVideoDescription] = useState('')
+  const [pictureDescription, setPictureDescription] = useState('')
   const [uploadStatus, setUploadStatus] = useState({ video: '', picture: '' })
+  const [uploadProgress, setUploadProgress] = useState({ video: 0, picture: 0 })
+  const [videos, setVideos] = useState([])
+  const [pictures, setPictures] = useState([])
+  const [loadingFiles, setLoadingFiles] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -34,6 +40,69 @@ export default function Admin() {
       }
     }
   }, [])
+
+  useEffect(() => {
+    if (isAuthenticated && activeTab === 'manage') {
+      loadFiles()
+    }
+  }, [isAuthenticated, activeTab])
+
+  const loadFiles = async () => {
+    setLoadingFiles(true)
+    try {
+      const [videoList, pictureList, metadata] = await Promise.all([
+        listVideos(),
+        listPictures(),
+        getMediaMetadata()
+      ])
+
+      const videosWithUrls = await Promise.all(
+        videoList.map(async (video) => {
+          const url = await getFileUrl(video.path)
+          const meta = metadata.videos.find(v => v.key === video.path) || {}
+          return {
+            id: video.path,
+            title: meta.title || video.path.split('/').pop(),
+            description: meta.description || '',
+            url: url,
+            size: formatFileSize(video.size),
+            lastModified: new Date(video.lastModified).toLocaleDateString()
+          }
+        })
+      )
+
+      const picturesWithUrls = await Promise.all(
+        pictureList.map(async (picture) => {
+          const url = await getFileUrl(picture.path)
+          const meta = metadata.pictures.find(p => p.key === picture.path) || {}
+          return {
+            id: picture.path,
+            title: meta.title || picture.path.split('/').pop(),
+            description: meta.description || '',
+            url: url,
+            size: formatFileSize(picture.size),
+            lastModified: new Date(picture.lastModified).toLocaleDateString()
+          }
+        })
+      )
+
+      setVideos(videosWithUrls)
+      setPictures(picturesWithUrls)
+    } catch (error) {
+      console.error('Error loading files:', error)
+      setUploadStatus(prev => ({ ...prev, manage: 'Error loading files' }))
+    } finally {
+      setLoadingFiles(false)
+    }
+  }
+
+  const formatFileSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes'
+    const k = 1024
+    const sizes = ['Bytes', 'KB', 'MB', 'GB']
+    const i = Math.floor(Math.log(bytes) / Math.log(k))
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
+  }
 
   const handleLogout = () => {
     localStorage.removeItem('adminAuthenticated')
@@ -82,15 +151,46 @@ export default function Admin() {
 
     setUploadStatus(prev => ({ ...prev, video: 'Uploading...' }))
     
-    // Simulate upload process
-    setTimeout(() => {
+    try {
+      // Upload to S3
+      const result = await uploadVideo(
+        videoFile,
+        videoTitle,
+        videoDescription,
+        (progress) => {
+          const percentage = Math.round((progress.loaded / progress.total) * 100)
+          setUploadProgress(prev => ({ ...prev, video: percentage }))
+        }
+      )
+      
+      // Update metadata JSON
+      const metadata = await getMediaMetadata()
+      metadata.videos.push({
+        key: result.key,
+        title: videoTitle,
+        description: videoDescription,
+        size: videoFile.size,
+        contentType: videoFile.type,
+        uploadDate: new Date().toISOString()
+      })
+      await updateMediaMetadata(metadata)
+      
       setUploadStatus(prev => ({ 
         ...prev, 
-        video: `✅ "${videoTitle}" uploaded successfully! (Demo: File would be uploaded to /public/videos/)` 
+        video: `✅ "${videoTitle}" uploaded successfully!` 
       }))
+      
+      // Reset form
       setVideoFile(null)
       setVideoTitle('')
-    }, 2000)
+      setVideoDescription('')
+      setUploadProgress(prev => ({ ...prev, video: 0 }))
+    } catch (error) {
+      setUploadStatus(prev => ({ 
+        ...prev, 
+        video: `❌ Upload failed: ${error.message}` 
+      }))
+    }
   }
 
   const handlePictureUpload = async () => {
@@ -107,15 +207,71 @@ export default function Admin() {
 
     setUploadStatus(prev => ({ ...prev, picture: 'Uploading...' }))
     
-    // Simulate upload process
-    setTimeout(() => {
+    try {
+      // Upload to S3
+      const result = await uploadPicture(
+        pictureFile,
+        pictureTitle,
+        pictureDescription,
+        (progress) => {
+          const percentage = Math.round((progress.loaded / progress.total) * 100)
+          setUploadProgress(prev => ({ ...prev, picture: percentage }))
+        }
+      )
+      
+      // Update metadata JSON
+      const metadata = await getMediaMetadata()
+      metadata.pictures.push({
+        key: result.key,
+        title: pictureTitle,
+        description: pictureDescription,
+        size: pictureFile.size,
+        contentType: pictureFile.type,
+        uploadDate: new Date().toISOString()
+      })
+      await updateMediaMetadata(metadata)
+      
       setUploadStatus(prev => ({ 
         ...prev, 
-        picture: `✅ "${pictureTitle}" uploaded successfully! (Demo: File would be uploaded to /public/pictures/)` 
+        picture: `✅ "${pictureTitle}" uploaded successfully!` 
       }))
+      
+      // Reset form
       setPictureFile(null)
       setPictureTitle('')
-    }, 2000)
+      setPictureDescription('')
+      setUploadProgress(prev => ({ ...prev, picture: 0 }))
+    } catch (error) {
+      setUploadStatus(prev => ({ 
+        ...prev, 
+        picture: `❌ Upload failed: ${error.message}` 
+      }))
+    }
+  }
+
+  const handleDeleteFile = async (key, type) => {
+    if (!confirm('Are you sure you want to delete this file? This action cannot be undone.')) {
+      return
+    }
+
+    try {
+      await deleteFile(key)
+      
+      // Update metadata
+      const metadata = await getMediaMetadata()
+      if (type === 'video') {
+        metadata.videos = metadata.videos.filter(v => v.key !== key)
+      } else {
+        metadata.pictures = metadata.pictures.filter(p => p.key !== key)
+      }
+      await updateMediaMetadata(metadata)
+      
+      // Reload files
+      loadFiles()
+    } catch (error) {
+      console.error('Error deleting file:', error)
+      alert('Failed to delete file: ' + error.message)
+    }
   }
 
   if (!isAuthenticated) {
@@ -221,6 +377,19 @@ export default function Admin() {
 
                 <div>
                   <label className="block text-sm font-semibold text-maroon-700 mb-2">
+                    Description (Optional)
+                  </label>
+                  <textarea
+                    value={videoDescription}
+                    onChange={(e) => setVideoDescription(e.target.value)}
+                    placeholder="Enter video description"
+                    rows={3}
+                    className="w-full px-4 py-2 border border-maroon-300 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-maroon-700 mb-2">
                     Video File
                   </label>
                   <input
@@ -245,6 +414,18 @@ export default function Admin() {
                   </div>
                 )}
 
+                {uploadProgress.video > 0 && uploadProgress.video < 100 && (
+                  <div>
+                    <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
+                      <div 
+                        className="bg-gold-500 h-2.5 rounded-full transition-all duration-300" 
+                        style={{ width: `${uploadProgress.video}%` }}
+                      ></div>
+                    </div>
+                    <p className="text-sm text-maroon-600">{uploadProgress.video}% uploaded</p>
+                  </div>
+                )}
+
                 <button
                   onClick={handleVideoUpload}
                   disabled={!videoFile || !videoTitle.trim()}
@@ -260,7 +441,9 @@ export default function Admin() {
                   <div className={`p-3 rounded-lg ${
                     uploadStatus.video.includes('✅') 
                       ? 'bg-green-50 border border-green-200 text-green-700'
-                      : 'bg-red-50 border border-red-200 text-red-700'
+                      : uploadStatus.video.includes('❌')
+                      ? 'bg-red-50 border border-red-200 text-red-700'
+                      : 'bg-blue-50 border border-blue-200 text-blue-700'
                   }`}>
                     {uploadStatus.video}
                   </div>
@@ -291,6 +474,19 @@ export default function Admin() {
 
                 <div>
                   <label className="block text-sm font-semibold text-maroon-700 mb-2">
+                    Description (Optional)
+                  </label>
+                  <textarea
+                    value={pictureDescription}
+                    onChange={(e) => setPictureDescription(e.target.value)}
+                    placeholder="Enter picture description"
+                    rows={3}
+                    className="w-full px-4 py-2 border border-maroon-300 rounded-lg focus:ring-2 focus:ring-gold-500 focus:border-gold-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-maroon-700 mb-2">
                     Picture File
                   </label>
                   <input
@@ -315,6 +511,18 @@ export default function Admin() {
                   </div>
                 )}
 
+                {uploadProgress.picture > 0 && uploadProgress.picture < 100 && (
+                  <div>
+                    <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
+                      <div 
+                        className="bg-gold-500 h-2.5 rounded-full transition-all duration-300" 
+                        style={{ width: `${uploadProgress.picture}%` }}
+                      ></div>
+                    </div>
+                    <p className="text-sm text-maroon-600">{uploadProgress.picture}% uploaded</p>
+                  </div>
+                )}
+
                 <button
                   onClick={handlePictureUpload}
                   disabled={!pictureFile || !pictureTitle.trim()}
@@ -330,7 +538,9 @@ export default function Admin() {
                   <div className={`p-3 rounded-lg ${
                     uploadStatus.picture.includes('✅') 
                       ? 'bg-green-50 border border-green-200 text-green-700'
-                      : 'bg-red-50 border border-red-200 text-red-700'
+                      : uploadStatus.picture.includes('❌')
+                      ? 'bg-red-50 border border-red-200 text-red-700'
+                      : 'bg-blue-50 border border-blue-200 text-blue-700'
                   }`}>
                     {uploadStatus.picture}
                   </div>
@@ -341,17 +551,92 @@ export default function Admin() {
         )}
 
         {activeTab === 'manage' && (
-          <div className="card">
-            <h2 className="text-2xl font-bold text-maroon-700 mb-6">Manage Files</h2>
-            <div className="bg-gold-50 border border-gold-200 rounded-lg p-6 text-center">
-              <div className="text-4xl mb-4">📁</div>
-              <h3 className="text-lg font-semibold text-gold-800 mb-2">File Management</h3>
-              <p className="text-gold-700 mb-4">
-                In a full implementation, this section would show all uploaded files with options to edit, delete, and organize them.
-              </p>
-              <p className="text-sm text-gold-600">
-                Files would be stored in <code className="bg-gold-100 px-2 py-1 rounded">/public/videos/</code> and <code className="bg-gold-100 px-2 py-1 rounded">/public/pictures/</code>
-              </p>
+          <div className="space-y-8">
+            {/* Videos Section */}
+            <div className="card">
+              <h2 className="text-2xl font-bold text-maroon-700 mb-6">Manage Videos</h2>
+              
+              {loadingFiles ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gold-500 mx-auto"></div>
+                  <p className="mt-4 text-maroon-600">Loading videos...</p>
+                </div>
+              ) : videos.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-4xl mb-4">🎥</div>
+                  <p className="text-maroon-600">No videos uploaded yet.</p>
+                </div>
+              ) : (
+                <div className="grid md:grid-cols-2 gap-4">
+                  {videos.map((video) => (
+                    <div key={video.id} className="border border-maroon-200 rounded-lg p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="font-bold text-maroon-700">{video.title}</h3>
+                        <button
+                          onClick={() => handleDeleteFile(video.id, 'video')}
+                          className="text-red-500 hover:text-red-700"
+                          title="Delete video"
+                        >
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd"/>
+                          </svg>
+                        </button>
+                      </div>
+                      <p className="text-sm text-maroon-600 mb-2">{video.description}</p>
+                      <div className="flex justify-between text-xs text-maroon-500">
+                        <span>Size: {video.size}</span>
+                        <span>Added: {video.lastModified}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Pictures Section */}
+            <div className="card">
+              <h2 className="text-2xl font-bold text-maroon-700 mb-6">Manage Pictures</h2>
+              
+              {loadingFiles ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gold-500 mx-auto"></div>
+                  <p className="mt-4 text-maroon-600">Loading pictures...</p>
+                </div>
+              ) : pictures.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-4xl mb-4">📸</div>
+                  <p className="text-maroon-600">No pictures uploaded yet.</p>
+                </div>
+              ) : (
+                <div className="grid md:grid-cols-3 gap-4">
+                  {pictures.map((picture) => (
+                    <div key={picture.id} className="border border-maroon-200 rounded-lg p-4">
+                      <img
+                        src={picture.url}
+                        alt={picture.title}
+                        className="w-full h-32 object-cover rounded-lg mb-2"
+                      />
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="font-bold text-maroon-700 text-sm">{picture.title}</h3>
+                        <button
+                          onClick={() => handleDeleteFile(picture.id, 'picture')}
+                          className="text-red-500 hover:text-red-700"
+                          title="Delete picture"
+                        >
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd"/>
+                          </svg>
+                        </button>
+                      </div>
+                      <p className="text-xs text-maroon-600 mb-2">{picture.description}</p>
+                      <div className="flex justify-between text-xs text-maroon-500">
+                        <span>Size: {picture.size}</span>
+                        <span>{picture.lastModified}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

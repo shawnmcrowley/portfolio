@@ -10,8 +10,8 @@ export default function Login() {
   const [error, setError] = useState('')
   const router = useRouter()
 
-  // Demo OTP - in production this would be generated dynamically
-  const demoOTP = '123456'
+  // Admin OTP - in production this would be generated dynamically
+  const correctOTP = '021612'
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -20,7 +20,7 @@ export default function Login() {
 
     // Simulate API call delay
     setTimeout(() => {
-      if (otp === demoOTP) {
+      if (otp === correctOTP) {
         // Store admin session
         if (typeof window !== 'undefined') {
           localStorage.setItem('adminAuthenticated', 'true')
@@ -34,10 +34,7 @@ export default function Login() {
     }, 1000)
   }
 
-  const generateNewOTP = () => {
-    const newOTP = Math.floor(100000 + Math.random() * 900000).toString()
-    alert(`Demo OTP: ${newOTP}\n\nIn a real application, this would be sent to your registered email or phone.`)
-  }
+
 
   return (
     <Layout>
@@ -46,27 +43,11 @@ export default function Login() {
           <div className="text-center mb-8">
             <div className="text-6xl text-maroon-400 mb-4">🔐</div>
             <h1 className="text-3xl font-youthful text-maroon-700 mb-2">
-              Admin Login
+              Secure Admin Access
             </h1>
             <p className="text-maroon-600">
-              Enter the One Time Password to access the admin panel
+              Enter the secure admin password to access the admin panel
             </p>
-          </div>
-
-          {/* Demo OTP Display */}
-          <div className="bg-gold-50 border border-gold-200 rounded-lg p-4 mb-6">
-            <div className="text-center">
-              <p className="text-gold-700 text-sm font-semibold mb-2">Demo OTP (for testing):</p>
-              <div className="text-2xl font-bold text-gold-800 font-mono tracking-wider">
-                {demoOTP}
-              </div>
-              <button
-                onClick={generateNewOTP}
-                className="mt-2 text-sm text-gold-600 hover:text-gold-800 underline"
-              >
-                Generate New Demo OTP
-              </button>
-            </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">

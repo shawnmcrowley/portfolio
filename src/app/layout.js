@@ -1,4 +1,5 @@
 import ServiceWorkerRegistration from '@/components/ServiceWorkerRegistration'
+import AmplifyConfig from '@/components/AmplifyConfig'
 import './globals.css'
 
 export const metadata = {
@@ -22,6 +23,7 @@ export default function RootLayout({ children }) {
         <link rel="manifest" href="/manifest.json" />
       </head>
       <body>
+        <AmplifyConfig />
         <ServiceWorkerRegistration />
         {children}
       </body>

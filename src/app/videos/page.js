@@ -1,40 +1,87 @@
+'use client'
+
+import { useState, useEffect } from 'react'
 import Layout from '@/components/Layout'
+import VideoPlayer from '@/components/VideoPlayer'
+import { listVideos, getFileUrl, formatFileSize } from '@/lib/storage'
 
 export default function Videos() {
-  const videos = [
-    {
-      id: 1,
-      title: "Welcome to My Portfolio",
-      description: "An introduction to my work and passion projects",
-      filename: "welcome-video.mp4",
-      duration: "2:30",
-      size: "15.2 MB"
-    },
-    {
-      id: 2,
-      title: "Sports Highlights",
-      description: "Compilation of my favorite sports moments",
-      filename: "sports-highlights.mp4",
-      duration: "4:15",
-      size: "28.7 MB"
-    },
-    {
-      id: 3,
-      title: "Creative Projects",
-      description: "Showcase of my latest creative endeavors",
-      filename: "creative-projects.mp4",
-      duration: "3:45",
-      size: "22.1 MB"
-    },
-    {
-      id: 4,
-      title: "Behind the Scenes",
-      description: "A look at the process behind my work",
-      filename: "behind-scenes.mp4",
-      duration: "5:20",
-      size: "35.8 MB"
+  const [videos, setVideos] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    loadVideos()
+  }, [])
+
+  const loadVideos = async () => {
+    try {
+      setLoading(true)
+      
+      // List videos from S3 - now includes enhanced metadata
+      const videoList = await listVideos()
+      
+      // Get URLs for each video
+      const videosWithUrls = await Promise.all(
+        videoList.map(async (video) => {
+          const url = await getFileUrl(video.path)
+          
+          return {
+            id: video.path,
+            title: video.title,
+            description: video.description,
+            url: url,
+            size: formatFileSize(video.size),
+            lastModified: new Date(video.lastModified).toLocaleDateString()
+          }
+        })
+      )
+      
+      setVideos(videosWithUrls)
+    } catch (err) {
+      console.error('Error loading videos:', err)
+      setError('Failed to load videos. Please check your AWS configuration.')
+    } finally {
+      setLoading(false)
     }
-  ]
+  }
+
+  const handleDownload = (url, filename) => {
+    const link = document.createElement('a')
+    link.href = url
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="max-w-6xl mx-auto text-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gold-500 mx-auto"></div>
+          <p className="mt-4 text-maroon-600">Loading videos...</p>
+        </div>
+      </Layout>
+    )
+  }
+
+  if (error) {
+    return (
+      <Layout>
+        <div className="max-w-6xl mx-auto text-center py-12">
+          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <p className="text-maroon-700 mb-4">{error}</p>
+          <button 
+            onClick={loadVideos}
+            className="btn-primary"
+          >
+            Retry
+          </button>
+        </div>
+      </Layout>
+    )
+  }
 
   return (
     <Layout>
@@ -49,60 +96,60 @@ export default function Videos() {
           </p>
         </div>
 
-        {/* Video Grid */}
-        <div className="grid md:grid-cols-2 gap-8">
-          {videos.map((video) => (
-            <div key={video.id} className="card hover:shadow-xl transition-shadow duration-300">
-              {/* Video Player Placeholder */}
-              <div className="relative bg-maroon-100 rounded-lg mb-4 aspect-video flex items-center justify-center">
-                <div className="text-center">
-                  <div className="text-6xl text-maroon-400 mb-2">🎥</div>
-                  <p className="text-maroon-600 font-semibold">Video Player</p>
-                  <p className="text-sm text-maroon-500 mt-1">{video.filename}</p>
-                </div>
-                
-                {/* Play Button Overlay */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <button className="bg-gold-500 hover:bg-gold-600 text-white rounded-full p-4 transition-colors duration-200 shadow-lg">
-                    <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M8 5v10l8-5-8-5z"/>
-                    </svg>
-                  </button>
-                </div>
-              </div>
+        {videos.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="text-6xl mb-4">🎥</div>
+            <p className="text-maroon-600">No videos found in bucket.</p>
+            <p className="text-sm text-maroon-500 mt-2">
+              Upload videos through the admin panel to see them here.
+            </p>
+          </div>
+        ) : (
+          <div className="grid md:grid-cols-2 gap-8">
+            {videos.map((video) => (
+              <div key={video.id} className="card hover:shadow-xl transition-shadow duration-300">
+                {/* Video Player */}
+                <VideoPlayer url={video.url} title={video.title} />
 
-              {/* Video Info */}
-              <div>
-                <h3 className="text-xl font-bold text-maroon-700 mb-2">
-                  {video.title}
-                </h3>
-                <p className="text-maroon-600 mb-4">
-                  {video.description}
-                </p>
-                
-                <div className="flex justify-between items-center text-sm text-maroon-500">
-                  <span>Duration: {video.duration}</span>
-                  <span>Size: {video.size}</span>
-                </div>
-                
-                <div className="mt-4 flex gap-2">
-                  <button className="btn-primary flex-1">
-                    <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M8 5v10l8-5-8-5z"/>
-                    </svg>
-                    Play
-                  </button>
-                  <button className="btn-secondary">
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M4 4v12h12V4H4zm0 14V6h8v12H4z"/>
-                    </svg>
-                    Download
-                  </button>
+                {/* Video Info */}
+                <div className="mt-4">
+                  <h3 className="text-xl font-bold text-maroon-700 mb-2">
+                    {video.title}
+                  </h3>
+                  <p className="text-maroon-600 mb-4">
+                    {video.description}
+                  </p>
+                  
+                  <div className="flex justify-between items-center text-sm text-maroon-500 mb-4">
+                    <span>Size: {video.size}</span>
+                    <span>Added: {video.lastModified}</span>
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => window.open(video.url, '_blank')}
+                      className="btn-primary flex-1"
+                    >
+                      <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M8 5v10l8-5-8-5z"/>
+                      </svg>
+                      Play
+                    </button>
+                    <button 
+                      onClick={() => handleDownload(video.url, video.title + '.mp4')}
+                      className="btn-secondary"
+                    >
+                      <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M4 4v12h12V4H4zm0 14V6h8v12H4z"/>
+                      </svg>
+                      Download
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
 
         {/* Admin Notice */}
         <div className="mt-12 bg-gold-50 border border-gold-200 rounded-lg p-6">
