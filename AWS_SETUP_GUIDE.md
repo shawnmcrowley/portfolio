@@ -63,8 +63,26 @@ Since your app uses **localStorage-based OTP authentication** (not AWS Cognito U
 3. **Create IAM Role:**
    - Name it: `portfolio-website-unauth-role`
    - This will be the ONLY role created
+   - Make sure the role has the necessary permissions (see Step 3)
 
 4. **Save the Identity Pool ID** (format: `us-east-1:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
+
+### ⚠️ Important Configuration Details:
+
+When creating the Identity Pool, make sure:
+- **"Enable access to unauthenticated identities"** is CHECKED ✓
+- **"Enable access to authenticated identities"** is UNCHECKED ✗
+- The unauthenticated role is created and attached to the pool
+
+**Troubleshooting Tip:** If you get "undefined (reading loginWith)" error, it means:
+1. The Identity Pool doesn't have guest access enabled, OR
+2. The environment variables aren't set correctly, OR
+3. The IAM role doesn't have proper S3 permissions
+
+**To verify guest access is working:**
+1. Open browser dev tools (F12)
+2. Look for "Amplify configured successfully" in console
+3. Check Network tab for any 403 Forbidden errors
 
 ---
 
@@ -247,6 +265,54 @@ Consider adding API Gateway + Lambda:
 2. CORS allows PUT method
 3. You're logged in with correct OTP
 
+### Issue: "Cannot read properties of undefined (reading 'loginWith')"
+
+This error means Amplify is trying to use authentication but the Identity Pool isn't configured for guest access.
+
+**Solutions:**
+
+1. **Verify Identity Pool Configuration:**
+   - Go to Cognito → Identity pools → Your pool
+   - Click "Edit identity pool"
+   - Ensure "Enable access to unauthenticated identities" is CHECKED
+   - Ensure "Enable access to authenticated identities" is UNCHECKED
+   - Save changes
+
+2. **Check Environment Variables:**
+   - In Amplify Console → Environment variables
+   - Verify `NEXT_PUBLIC_AWS_IDENTITY_POOL_ID` is set correctly
+   - Format should be: `us-east-1:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`
+   - Redeploy after making changes
+
+3. **Verify IAM Role Trust Policy:**
+   - Go to IAM → Roles → Your unauth role
+   - Check "Trust relationships" tab
+   - Should include:
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [{
+       "Effect": "Allow",
+       "Principal": {
+         "Federated": "cognito-identity.amazonaws.com"
+       },
+       "Action": "sts:AssumeRoleWithWebIdentity",
+       "Condition": {
+         "StringEquals": {
+           "cognito-identity.amazonaws.com:aud": "YOUR_IDENTITY_POOL_ID"
+         },
+         "ForAnyValue:StringLike": {
+           "cognito-identity.amazonaws.com:amr": "unauthenticated"
+         }
+       }
+     }]
+   }
+   ```
+
+4. **Clear Browser Cache:**
+   - Hard refresh: Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac)
+   - Or open in incognito/private window
+
 ---
 
 ## Architecture (Simplified)
@@ -280,6 +346,39 @@ Consider adding API Gateway + Lambda:
 ```
 
 **Admin protection:** Via OTP in app UI (021612)
+
+### Quick Debugging Checklist
+
+If you're still having issues, check these in order:
+
+1. **Browser Console:**
+   ```
+   ✓ "Amplify configured successfully" message appears
+   ✓ No red error messages about Cognito or S3
+   ✓ Identity Pool ID is logged correctly
+   ```
+
+2. **Network Tab (F12 → Network):**
+   ```
+   ✓ Look for requests to `cognito-identity.us-east-1.amazonaws.com`
+   ✓ Should return 200 with IdentityId
+   ✓ No 403 Forbidden errors
+   ```
+
+3. **Environment Variables:**
+   ```bash
+   # In browser console, type:
+   console.log(process.env.NEXT_PUBLIC_AWS_IDENTITY_POOL_ID)
+   # Should print your identity pool ID
+   ```
+
+4. **IAM Role Permissions:**
+   ```
+   ✓ Role has S3 read permissions
+   ✓ Role has S3 write permissions  
+   ✓ Trust policy allows cognito-identity.amazonaws.com
+   ✓ Trust policy has "unauthenticated" condition
+   ```
 
 ---
 
