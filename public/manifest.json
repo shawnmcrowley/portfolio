@@ -1,6 +1,6 @@
 {
-  "name": "Portfolio Video Website",
-  "short_name": "Portfolio",
+  "name": "Brady's Portfolio Site",
+  "short_name": "Brady's Portfolio",
   "description": "A personal portfolio showcasing videos, pictures, and about me",
   "start_url": "/",
   "display": "standalone",
@@ -18,5 +18,20 @@
       "sizes": "512x512",
       "type": "image/png"
     }
-  ]
+  ],
+  "screenshots":[
+  {
+	  "src": "/splash-540x720.png",
+	  "sizes": "540x720",
+	  "type": "image/png",
+	  "form_factor": "narrow"
+  },
+  {
+	  "src": "/splash-1280x676.png",
+	  "sizes": "1280x676",
+	  "type": "image/png",
+	  "form_factor": "wide"
+  }
+]
 }
+

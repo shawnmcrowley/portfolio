@@ -25,6 +25,24 @@ Since your app uses **localStorage-based OTP authentication** (not AWS Cognito U
 
 ---
 
+## ⚠️ CRITICAL: Service Role Issue
+
+**If Cognito created a "service role" instead of a regular IAM role, it won't work!**
+
+**Symptoms:**
+- "invalid storage bucket" error in console
+- No network requests to `cognito-identity.amazonaws.com`
+- Amplify says "configured successfully" but S3 operations fail
+
+**Solution:** See [FIX_SERVICE_ROLE.md](./FIX_SERVICE_ROLE.md) for detailed instructions on how to:
+1. Update the existing service role's trust policy, OR
+2. Create a new regular IAM role, OR
+3. Update S3 bucket policy for quick testing
+
+**Quick Check:** Go to IAM → Roles → Find your Cognito role → Trust relationships tab. If it shows `Service: cognito-identity.amazonaws.com` instead of `Federated: cognito-identity.amazonaws.com`, you have a service role that needs fixing.
+
+---
+
 ## Step 1: Configure S3 Bucket CORS
 
 1. Go to **AWS S3 Console** → Select `shawnmcrowley-bucket`
