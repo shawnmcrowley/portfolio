@@ -56,8 +56,12 @@ export default function Admin() {
         getMediaMetadata()
       ])
 
+      // Filter out any 0-byte items (folders) that might have slipped through
+      const validVideos = videoList.filter(video => video.size > 0 && !video.path.endsWith('/'))
+      const validPictures = pictureList.filter(picture => picture.size > 0 && !picture.path.endsWith('/'))
+
       const videosWithUrls = await Promise.all(
-        videoList.map(async (video) => {
+        validVideos.map(async (video) => {
           const url = await getFileUrl(video.path)
           const meta = metadata.videos.find(v => v.key === video.path) || {}
           return {
@@ -72,7 +76,7 @@ export default function Admin() {
       )
 
       const picturesWithUrls = await Promise.all(
-        pictureList.map(async (picture) => {
+        validPictures.map(async (picture) => {
           const url = await getFileUrl(picture.path)
           const meta = metadata.pictures.find(p => p.key === picture.path) || {}
           return {

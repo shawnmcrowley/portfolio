@@ -147,11 +147,19 @@ export async function listVideos() {
       }
     });
     
+    // Filter out folder prefixes (items ending with / or with 0 bytes)
+    const files = result.items.filter(item => {
+      // Skip if it's a folder (ends with /) or has 0 bytes
+      const isFolder = item.path.endsWith('/');
+      const isEmpty = item.size === 0;
+      return !isFolder && !isEmpty;
+    });
+    
     // Get S3 object metadata for each video
     const metadata = await getMediaMetadata();
     
     // Map files with enhanced metadata
-    const videos = result.items.map(item => {
+    const videos = files.map(item => {
       const meta = metadata.videos.find(v => v.key === item.path) || {};
       const filename = extractFilename(item.path);
       
@@ -180,11 +188,19 @@ export async function listPictures() {
       }
     });
     
+    // Filter out folder prefixes (items ending with / or with 0 bytes)
+    const files = result.items.filter(item => {
+      // Skip if it's a folder (ends with /) or has 0 bytes
+      const isFolder = item.path.endsWith('/');
+      const isEmpty = item.size === 0;
+      return !isFolder && !isEmpty;
+    });
+    
     // Get metadata for enhancement
     const metadata = await getMediaMetadata();
     
     // Map files with enhanced metadata
-    const pictures = result.items.map(item => {
+    const pictures = files.map(item => {
       const meta = metadata.pictures.find(p => p.key === item.path) || {};
       const filename = extractFilename(item.path);
       
@@ -247,13 +263,17 @@ export function formatFileSize(bytes) {
 // Utility: Scan existing bucket and create metadata file
 export async function scanAndCreateMetadata() {
   try {
-    const [videoList, pictureList] = await Promise.all([
+    const [videoResult, pictureResult] = await Promise.all([
       list({ path: VIDEOS_PREFIX, options: { bucket: BUCKET_NAME } }),
       list({ path: PICTURES_PREFIX, options: { bucket: BUCKET_NAME } })
     ]);
     
+    // Filter out folder prefixes
+    const videoFiles = videoResult.items.filter(item => !item.path.endsWith('/') && item.size > 0);
+    const pictureFiles = pictureResult.items.filter(item => !item.path.endsWith('/') && item.size > 0);
+    
     const metadata = {
-      videos: videoList.items.map(item => ({
+      videos: videoFiles.map(item => ({
         key: item.path,
         title: generateTitle(extractFilename(item.path)),
         description: '',
@@ -261,7 +281,7 @@ export async function scanAndCreateMetadata() {
         contentType: item.contentType || 'video/mp4',
         uploadDate: item.lastModified || new Date().toISOString()
       })),
-      pictures: pictureList.items.map(item => ({
+      pictures: pictureFiles.map(item => ({
         key: item.path,
         title: generateTitle(extractFilename(item.path)),
         description: '',
@@ -272,6 +292,7 @@ export async function scanAndCreateMetadata() {
     };
     
     await updateMediaMetadata(metadata);
+    console.log('Metadata file created with', metadata.videos.length, 'videos and', metadata.pictures.length, 'pictures');
     return metadata;
   } catch (error) {
     console.error('Error scanning bucket:', error);
