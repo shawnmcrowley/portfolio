@@ -3,76 +3,91 @@
 import { useEffect, useState } from 'react'
 
 export default function ServiceWorkerRegistration() {
-  const [registrationStatus, setRegistrationStatus] = useState('checking')
+  const [status, setStatus] = useState('checking')
 
   useEffect(() => {
     if (typeof window === 'undefined') return
 
     if (!('serviceWorker' in navigator)) {
-      console.log('Service Worker not supported in this browser')
-      setRegistrationStatus('not-supported')
+      console.log('[SW] Service Worker not supported')
+      setStatus('not-supported')
       return
     }
 
-    // Register service worker
     const registerSW = async () => {
       try {
-        console.log('Attempting to register Service Worker...')
+        console.log('[SW] Starting registration...')
+        
+        // Unregister any existing service workers first (clean slate)
+        const existingRegistrations = await navigator.serviceWorker.getRegistrations()
+        for (const reg of existingRegistrations) {
+          if (reg.scope === window.location.origin + '/') {
+            console.log('[SW] Found existing registration, updating...')
+          }
+        }
         
         const registration = await navigator.serviceWorker.register('/sw.js', {
-          scope: '/'
+          scope: '/',
+          updateViaCache: 'imports'
         })
         
-        console.log('Service Worker registered successfully:', registration)
-        setRegistrationStatus('registered')
+        console.log('[SW] Registered successfully:', registration.scope)
+        setStatus('registered')
 
-        // Handle updates
+        // Handle state changes
+        const handleStateChange = () => {
+          const sw = registration.installing || registration.waiting || registration.active
+          if (sw) {
+            console.log('[SW] State:', sw.state)
+            
+            if (sw.state === 'redundant') {
+              console.warn('[SW] Service worker became redundant - will retry')
+              // Force re-registration after a delay
+              setTimeout(() => {
+                registration.update()
+              }, 5000)
+            }
+          }
+        }
+
+        if (registration.installing) {
+          registration.installing.addEventListener('statechange', handleStateChange)
+        }
+        if (registration.waiting) {
+          registration.waiting.addEventListener('statechange', handleStateChange)
+        }
+        if (registration.active) {
+          registration.active.addEventListener('statechange', handleStateChange)
+        }
+
         registration.addEventListener('updatefound', () => {
           const newWorker = registration.installing
-          console.log('Service Worker update found:', newWorker)
+          console.log('[SW] Update found, installing...')
           
           newWorker.addEventListener('statechange', () => {
-            console.log('Service Worker state changed:', newWorker.state)
+            console.log('[SW] New worker state:', newWorker.state)
             
             if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              console.log('New Service Worker installed, page will refresh on next visit')
+              console.log('[SW] New version available, reloading recommended')
             }
           })
         })
 
-        // Check if service worker is active
-        if (registration.active) {
-          console.log('Service Worker is active')
-        } else if (registration.installing) {
-          console.log('Service Worker is installing...')
-        } else if (registration.waiting) {
-          console.log('Service Worker is waiting')
-        }
-
       } catch (error) {
-        console.error('Service Worker registration failed:', error)
-        setRegistrationStatus('failed')
-        
-        // Log more details about the error
-        if (error.name === 'TypeError') {
-          console.error('This might be because sw.js is not accessible at /sw.js')
-        }
+        console.error('[SW] Registration failed:', error)
+        setStatus('failed')
       }
     }
 
-    // Wait for page to load before registering
-    if (document.readyState === 'complete') {
-      registerSW()
-    } else {
-      window.addEventListener('load', registerSW)
-    }
+    // Register immediately
+    registerSW()
 
-    // Cleanup
-    return () => {
-      window.removeEventListener('load', registerSW)
+    // Also register on load
+    if (document.readyState === 'loading') {
+      window.addEventListener('load', registerSW)
+      return () => window.removeEventListener('load', registerSW)
     }
   }, [])
 
-  // This component doesn't render anything visible
   return null
 }
